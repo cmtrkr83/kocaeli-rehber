@@ -734,6 +734,11 @@
         const landline = parsePhone(c.tel);
         const mobile = parsePhone(c.cep);
         const waTarget = mobile && mobile.wa;
+        const district = c.ilce ? String(c.ilce).trim().toLocaleUpperCase('tr-TR') : '';
+        const schoolName = String(c.okul || '').trim();
+        const districtPrefix = district && schoolName && !normalizeTR(schoolName).startsWith(normalizeTR(district) + ' -')
+          ? district + ' - '
+          : '';
 
         const phoneButton = (phone, icon, label) =>
           phone
@@ -745,7 +750,7 @@
 
         return `
         <article class="card">
-          <div class="school">${escapeHtml(c.okul)}</div>
+          <div class="school">${escapeHtml(districtPrefix + schoolName)}</div>
           <div class="person">
             <svg class="ico" aria-hidden="true"><use href="#i-user" /></svg>
             <span>${escapeHtml(c.mdr || 'Belirtilmemiş')}</span>
