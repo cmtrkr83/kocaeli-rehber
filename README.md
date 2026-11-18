@@ -13,6 +13,7 @@ Sunucu yalnızca statik dosya sunar; `GET`/`HEAD` dışındaki istekler `405` il
 - Excel (`.xlsx`, `.xls`, `.csv`) yükleme, ilçe filtresi, arama
 - Sabit/cep telefonu için `tel:` bağlantıları, WhatsApp kısayolu
 - PWA: ana ekrana ekleme, tam ekran (`standalone`), çevrimdışı açılış
+- Yedek dosyası: seçilen JSON dosyasına otomatik yazma ve açılışta geri yükleme
 - "Gömülü HTML indir" ile veriyi içeren tek dosyalık kopya
 
 ## Docker / Portainer
@@ -40,6 +41,15 @@ Uygulama `http://SUNUCU_IP:8088` adresinde açılır. Nginx statik dosyaları bi
 - **iPhone:** Safari ile açın → Paylaş → Ana Ekrana Ekle. Yalnızca Safari'nin ana ekran kısayolu tam ekran (`standalone`) açılır.
 - **Android:** HTTPS adresi üzerinden Chrome'un kurulum istemini kullanın.
 - Service worker HTTPS (veya localhost) gerektirir; düz HTTP LAN adresinde çevrimdışı önbellek çalışmaz.
+
+## Yedekleme
+
+Ayarlar → **Yedek dosyası seç** ile cihazda bir JSON dosyası belirlenir. Her Excel yüklemesinde kayıtlar bu dosyaya otomatik yazılır; uygulama açılırken dosya daha yeni ise kayıtlar geri yüklenir.
+
+- Tarayıcı verileri temizlense bile **dosya diskte kalır**. Ancak tarayıcı, dosya bağlantısını da sildiği için aynı dosyanın **Yedek dosyası seç** ile yeniden seçilmesi gerekir; seçim sırasında kayıtlar dosyadan geri yüklenir.
+- File System Access API gerekir: Chrome/Edge (masaüstü) ve Android Chrome 132+. Safari/iOS desteklemez; orada **Gömülü HTML indir** yedeği kullanılabilir.
+- Yedek dosyası sunucuya gönderilmez; yalnızca kullanıcının seçtiği yerel dosyaya yazılır. Tarayıcı verileri temizlendiğinde `localStorage` silinir, dosya silinmez.
+- Yedek dosyası seçildiğinde dosyada geçerli kayıt varsa, mevcut verinin üzerine yazmadan önce onay istenir.
 
 ## zrok
 

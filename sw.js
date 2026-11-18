@@ -1,4 +1,4 @@
-const CACHE = 'rehber-v1';
+const CACHE = 'rehber-v2';
 const SHELL = [
   './',
   './index.html',

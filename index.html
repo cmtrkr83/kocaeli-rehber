@@ -340,6 +340,23 @@
       background: var(--soft);
       color: var(--ink-2);
     }
+    .action-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .action-sub {
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--ink-3);
+      overflow-wrap: anywhere;
+    }
+    .sheet-action[hidden] { display: none; }
+    .sheet-action.is-danger,
+    .sheet-action.is-danger .action-icon { color: #9d2f27; }
+    .sheet-action.is-danger .action-icon { background: #f7ecea; }
+    .sheet-action.is-danger:active { background: #f7ecea; }
 
     @keyframes sheet-in {
       from { transform: translateY(16px); opacity: 0.5; }
@@ -414,6 +431,12 @@
   <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
   </symbol>
+  <symbol id="i-backup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+  </symbol>
   <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M4.5 12.75l6 6 9-13.5" />
   </symbol>
@@ -481,7 +504,18 @@
       <span class="action-icon"><svg class="ico" aria-hidden="true"><use href="#i-download" /></svg></span>
       Gömülü HTML indir
     </button>
-    <p class="sheet-note">Rehber verisi yalnızca bu cihazda saklanır; sunucuya gönderilmez.</p>
+    <button class="sheet-action" type="button" data-action="backup" id="backupBtn">
+      <span class="action-icon"><svg class="ico" aria-hidden="true"><use href="#i-backup" /></svg></span>
+      <span class="action-text">
+        <span class="action-label" id="backupLabel">Yedek dosyası seç</span>
+        <span class="action-sub" id="backupSub">Tarayıcı verisi silinse bile kayıtlar bu dosyada kalır</span>
+      </span>
+    </button>
+    <button class="sheet-action is-danger" type="button" data-action="backup-remove" id="backupRemoveBtn" hidden>
+      <span class="action-icon"><svg class="ico" aria-hidden="true"><use href="#i-trash" /></svg></span>
+      <span class="action-text"><span class="action-label">Yedek bağlantısını kaldır</span></span>
+    </button>
+    <p class="sheet-note" id="backupNote">Rehber verisi yalnızca bu cihazda saklanır; sunucuya gönderilmez.</p>
   </div>
 </dialog>
 
@@ -491,9 +525,59 @@
 
 <script>
   const STORAGE_KEY = 'okul_rehberi_data_v1';
+  const BACKUP_DB = 'okul_rehberi_backup_v1';
+  const BACKUP_STORE = 'files';
+  const BACKUP_KEY = 'backupFile';
+  const BACKUP_SUPPORTED = typeof window.showSaveFilePicker === 'function';
   let contacts = [];
   let selectedDistrict = 'TÜMÜ';
   let renderLimit = 80;
+  let currentUpdatedAtMs = 0;
+  let backupHandle = null;
+  let backupPermission = 'none';
+
+  function idbOpen() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(BACKUP_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(BACKUP_STORE)) db.createObjectStore(BACKUP_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbGet(key) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readonly');
+      const req = tx.objectStore(BACKUP_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  }
+
+  async function idbSet(key, value) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).put(value, key);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbDel(key) {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).delete(key);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
 
   const normalizeTR = (val) =>
     String(val || '')
@@ -530,7 +614,7 @@
     return { dial, formatted, isMobile, wa: isMobile ? '90' + digits : null };
   };
 
-  function init() {
+  async function init() {
     const embeddedEl = document.getElementById('embedded-data');
     const embeddedUpdated = Number(embeddedEl.getAttribute('data-updated') || '0');
     let embeddedList = [];
@@ -541,12 +625,21 @@
 
     if (savedObj && Array.isArray(savedObj.data) && savedObj.updatedAtMs >= embeddedUpdated) {
       contacts = savedObj.data;
+      currentUpdatedAtMs = Number(savedObj.updatedAtMs || 0);
     } else {
       contacts = embeddedList;
+      currentUpdatedAtMs = embeddedUpdated;
     }
 
     buildDistrictOptions();
     render();
+
+    await loadBackupHandle();
+    await refreshBackupPermission();
+    if (backupHandle && backupPermission === 'granted') {
+      const restored = await restoreFromBackupHandle(false);
+      if (restored) updateBackupUi();
+    }
   }
 
   function getDistricts() {
@@ -686,6 +779,204 @@
     document.getElementById('fileInput').click();
   }
 
+  function updateBackupUi() {
+    const btn = document.getElementById('backupBtn');
+    const label = document.getElementById('backupLabel');
+    const sub = document.getElementById('backupSub');
+    const removeBtn = document.getElementById('backupRemoveBtn');
+    const note = document.getElementById('backupNote');
+    if (!btn || !label || !sub || !removeBtn || !note) return;
+
+    if (!BACKUP_SUPPORTED) {
+      btn.hidden = true;
+      removeBtn.hidden = true;
+      note.textContent = 'Bu tarayıcı otomatik yedek dosyasını desteklemiyor (Safari). Verini korumak için "Gömülü HTML indir" ile yedek al.';
+      return;
+    }
+
+    note.textContent = 'Rehber verisi yalnızca bu cihazda saklanır; sunucuya gönderilmez.';
+    btn.hidden = false;
+
+    if (!backupHandle) {
+      label.textContent = 'Yedek dosyası seç';
+      sub.textContent = 'Tarayıcı verisi silinse bile kayıtlar bu dosyada kalır';
+      removeBtn.hidden = true;
+      return;
+    }
+
+    removeBtn.hidden = false;
+    const stateText = {
+      granted: 'bağlı',
+      prompt: 'izin bekliyor',
+      denied: 'izin verilmedi',
+    }[backupPermission] || 'bağlı';
+
+    label.textContent = backupPermission === 'granted' ? 'Yedek dosyasını değiştir' : 'Yedeğe yeniden bağlan';
+    sub.textContent = `${backupHandle.name} · ${stateText}`;
+  }
+
+  async function loadBackupHandle() {
+    if (!BACKUP_SUPPORTED || !('indexedDB' in window)) return;
+    try {
+      const stored = await idbGet(BACKUP_KEY);
+      if (stored && typeof stored.queryPermission === 'function' && typeof stored.getFile === 'function') {
+        backupHandle = stored;
+      }
+    } catch (e) {}
+  }
+
+  async function refreshBackupPermission() {
+    if (!backupHandle) {
+      backupPermission = 'none';
+      updateBackupUi();
+      return;
+    }
+    try {
+      backupPermission = await backupHandle.queryPermission({ mode: 'readwrite' });
+    } catch (e) {
+      backupPermission = 'denied';
+    }
+    updateBackupUi();
+  }
+
+  async function requestBackupPermission() {
+    if (!backupHandle) return false;
+    try {
+      backupPermission = await backupHandle.requestPermission({ mode: 'readwrite' });
+    } catch (e) {
+      backupPermission = 'denied';
+    }
+    updateBackupUi();
+    return backupPermission === 'granted';
+  }
+
+  async function inspectBackupFile() {
+    const file = await backupHandle.getFile();
+    if (!file.size) return { status: 'empty', obj: null };
+    let obj = null;
+    try { obj = JSON.parse(await file.text()); } catch (e) {}
+    if (obj && Array.isArray(obj.data)) return { status: 'valid', obj };
+    return { status: 'invalid', obj: null };
+  }
+
+  function applyBackup(obj) {
+    contacts = obj.data;
+    currentUpdatedAtMs = Number(obj.updatedAtMs || 0) || Date.now();
+    selectedDistrict = 'TÜMÜ';
+    renderLimit = 80;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: contacts, updatedAtMs: currentUpdatedAtMs }));
+    buildDistrictOptions();
+    render();
+  }
+
+  async function writeBackup(updatedAtMs) {
+    if (!backupHandle) return false;
+    if (backupPermission !== 'granted') return false;
+    const stamp = Number(updatedAtMs) || Date.now();
+    const payload = { app: 'kocaeli-rehber', version: 1, updatedAtMs: stamp, data: contacts };
+    const writable = await backupHandle.createWritable();
+    await writable.write(JSON.stringify(payload, null, 2));
+    await writable.close();
+    updateBackupUi();
+    return true;
+  }
+
+  async function restoreFromBackupHandle(force) {
+    if (!backupHandle) return 0;
+    try {
+      if (backupPermission !== 'granted') return 0;
+      const inspected = await inspectBackupFile();
+      if (inspected.status !== 'valid') return 0;
+      const obj = inspected.obj;
+      if (!obj.data.length && contacts.length) return 0;
+      const stamp = Number(obj.updatedAtMs || 0);
+      if (!force && !(stamp > currentUpdatedAtMs)) return 0;
+      applyBackup(obj);
+      return obj.data.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  async function chooseBackupFile() {
+    if (!BACKUP_SUPPORTED) return;
+    let handle;
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: 'rehber-yedek.json',
+        types: [{ description: 'Rehber yedeği', accept: { 'application/json': ['.json'] } }],
+      });
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      alert('Yedek dosyası seçilemedi: ' + (err && (err.message || err.name) ? err.message || err.name : 'bilinmeyen hata'));
+      return;
+    }
+
+    backupHandle = handle;
+    backupPermission = 'granted';
+    try { await idbSet(BACKUP_KEY, handle); } catch (e) {}
+
+    let inspected = { status: 'empty', obj: null };
+    try { inspected = await inspectBackupFile(); } catch (e) {}
+
+    if (inspected.status === 'invalid') {
+      const overwrite = confirm('Seçilen dosya bir rehber yedeği değil. Üzerine yazılsın mı?');
+      if (!overwrite) {
+        backupHandle = null;
+        backupPermission = 'none';
+        try { await idbDel(BACKUP_KEY); } catch (e) {}
+        updateBackupUi();
+        return;
+      }
+    }
+
+    if (inspected.status === 'valid' && inspected.obj.data.length) {
+      const count = inspected.obj.data.length;
+      const useBackup = !contacts.length || confirm(`Seçilen dosyada ${count} kayıt var. Bu kayıtlar cihaza yüklensin mi?\n\nİptal: mevcut ${contacts.length} kayıt dosyaya yazılır.`);
+      if (useBackup) {
+        applyBackup(inspected.obj);
+        updateBackupUi();
+        alert(`${count} kayıt yedek dosyasından geri yüklendi.`);
+        return;
+      }
+    }
+
+    try {
+      await writeBackup(Date.now());
+      updateBackupUi();
+      alert(contacts.length
+        ? 'Yedek dosyası bağlandı. Her Excel yüklemesinde güncellenecek.'
+        : 'Yedek dosyası bağlandı. Excel yüklediğinde kayıtlar bu dosyaya yazılacak.');
+    } catch (err) {
+      alert('Yedek dosyasına yazılamadı: ' + (err && err.message ? err.message : 'bilinmeyen hata'));
+    }
+  }
+
+  async function onBackupAction() {
+    if (!BACKUP_SUPPORTED) return;
+    if (backupHandle && backupPermission !== 'granted') {
+      const granted = await requestBackupPermission();
+      if (!granted) {
+        alert('Yedek dosyasına erişim izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.');
+        return;
+      }
+      const restored = await restoreFromBackupHandle(false);
+      alert(restored
+        ? `${restored} kayıt yedek dosyasından geri yüklendi.`
+        : 'Yedek dosyası yeniden bağlandı.');
+      return;
+    }
+    chooseBackupFile();
+  }
+
+  async function removeBackupHandle() {
+    backupHandle = null;
+    backupPermission = 'none';
+    try { await idbDel(BACKUP_KEY); } catch (e) {}
+    updateBackupUi();
+    alert('Yedek dosyası bağlantısı kaldırıldı. Dosyadaki kayıtlar silinmedi.');
+  }
+
   document.getElementById('searchInput').addEventListener('input', () => {
     renderLimit = 80;
     render();
@@ -693,7 +984,10 @@
 
   document.getElementById('clearBtn').addEventListener('click', clearSearch);
   document.getElementById('filterBtn').addEventListener('click', () => openSheet('filterSheet'));
-  document.getElementById('settingsBtn').addEventListener('click', () => openSheet('settingsSheet'));
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    openSheet('settingsSheet');
+    refreshBackupPermission();
+  });
 
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => closeSheet(btn.dataset.close));
@@ -712,6 +1006,9 @@
 
   document.querySelector('[data-action="upload"]').addEventListener('click', pickFile);
   document.querySelector('[data-action="export"]').addEventListener('click', exportEmbeddedHtml);
+  document.querySelector('[data-action="backup"]').addEventListener('click', onBackupAction);
+  document.querySelector('[data-action="backup-remove"]').addEventListener('click', removeBackupHandle);
+  updateBackupUi();
 
   document.getElementById('fileInput').addEventListener('change', function (e) {
     const file = e.target.files[0];
@@ -751,10 +1048,16 @@
         contacts = parsed;
         selectedDistrict = 'TÜMÜ';
         renderLimit = 80;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: contacts, updatedAtMs: Date.now() }));
+        currentUpdatedAtMs = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: contacts, updatedAtMs: currentUpdatedAtMs }));
         buildDistrictOptions();
         render();
         alert(parsed.length + ' kayıt rehbere aktarıldı.');
+        if (backupHandle && backupPermission === 'granted') {
+          writeBackup(currentUpdatedAtMs).catch((err) => {
+            alert('Kayıtlar cihaza kaydedildi ancak yedek dosyasına yazılamadı: ' + (err && err.message ? err.message : 'bilinmeyen hata'));
+          });
+        }
       } catch (err) {
         alert('Dosya okuma hatası: ' + err.message);
       }
