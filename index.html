@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Okul Rehberi" />
+  <meta name="theme-color" content="#171513" />
+  <title>Kurum & Yönetici Rehberi</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --surface: #ffffff;
+      --ink: #171513;
+      --ink-2: #66625b;
+      --ink-3: #8d8880;
+      --line: rgba(23, 21, 19, 0.10);
+      --header: #171513;
+      --header-ink: #f6f4f0;
+      --accent: #128c7e;
+      --accent-press: #0e7569;
+      --soft: #f2f0ec;
+      --radius-card: 16px;
+      --radius-ctl: 12px;
+      --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100dvh;
+      overscroll-behavior-y: none;
+      padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .ico { width: 18px; height: 18px; display: block; flex: none; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* App bar */
+    .app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--header);
+      padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 688px;
+      margin: 0 auto;
+    }
+    .search-field {
+      position: relative;
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .search-field .search-icon {
+      position: absolute;
+      left: 12px;
+      color: var(--ink-2);
+      pointer-events: none;
+    }
+    .search-field input {
+      width: 100%;
+      height: 44px;
+      padding: 0 40px 0 38px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-ctl);
+      background: #fff;
+      color: var(--ink);
+      font-size: 16px;
+      outline: none;
+      appearance: none;
+    }
+    .search-field input::placeholder { color: var(--ink-2); }
+    .search-field input:focus {
+      box-shadow: 0 0 0 3px rgba(18, 140, 126, 0.35);
+    }
+    .clear-btn {
+      position: absolute;
+      right: 2px;
+      width: 36px;
+      height: 36px;
+      display: none;
+      place-items: center;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--ink-2);
+    }
+    .clear-btn.is-visible { display: grid; }
+
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: var(--radius-ctl);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--header-ink);
+      position: relative;
+      transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+    }
+    .icon-btn:active { background: rgba(255, 255, 255, 0.16); }
+    .filter-btn.is-active {
+      background: #fff;
+      border-color: #fff;
+      color: var(--ink);
+    }
+    .filter-dot {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .filter-dot[hidden] { display: none; }
+
+    /* List */
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-card);
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(23, 21, 19, 0.04);
+    }
+    .school {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .person {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 18px;
+      color: var(--ink-2);
+    }
+    .person .ico { color: var(--ink-3); }
+
+    .actions {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: nowrap;
+    }
+    .act {
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: var(--radius-ctl);
+      text-decoration: none;
+      font-weight: 500;
+      white-space: nowrap;
+      min-width: 0;
+      transition: background-color 0.15s var(--ease), transform 0.1s var(--ease);
+    }
+    .act:active { transform: scale(0.98); }
+    .act-call {
+      flex: 1 1 0;
+      padding: 0 10px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    .act-wa {
+      flex: 0 0 44px;
+      background: var(--accent);
+      color: #fff;
+    }
+    .act-wa:active { background: var(--accent-press); }
+    .act .ico { color: currentColor; }
+    .num-compact { display: none; }
+
+    .empty {
+      padding: 48px 16px;
+      text-align: center;
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .empty-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .more-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: var(--radius-ctl);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .more-btn:active { background: var(--soft); }
+
+    /* Sheets */
+    .sheet {
+      position: fixed;
+      inset: auto 0 0 0;
+      margin: 0 auto;
+      width: 100%;
+      max-width: 480px;
+      max-height: 82dvh;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-bottom: 0;
+      border-radius: 18px 18px 0 0;
+      background: var(--surface);
+      color: var(--ink);
+      overflow: hidden;
+      box-shadow: 0 -8px 32px rgba(23, 21, 19, 0.16);
+    }
+    .sheet[open] {
+      display: flex;
+      flex-direction: column;
+      animation: sheet-in 0.24s var(--ease);
+    }
+    .sheet::backdrop {
+      background: rgba(23, 21, 19, 0.42);
+      animation: fade-in 0.2s var(--ease);
+    }
+    .sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 8px;
+    }
+    .sheet-head h2 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .sheet-close {
+      width: 36px;
+      height: 36px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 10px;
+      background: var(--soft);
+      color: var(--ink-2);
+    }
+    .sheet-close:active { background: #e8e5df; }
+    .sheet-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 0 8px calc(12px + env(safe-area-inset-bottom));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .option,
+    .sheet-action {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 48px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: var(--radius-ctl);
+      background: transparent;
+      text-align: left;
+      font-size: 15px;
+      color: var(--ink);
+    }
+    .option:active, .sheet-action:active { background: var(--soft); }
+    .option { justify-content: space-between; }
+    .option.is-selected { font-weight: 500; }
+    .option-check {
+      opacity: 0;
+      color: var(--accent);
+    }
+    .option.is-selected .option-check { opacity: 1; }
+    .sheet-action { min-height: 52px; padding: 8px 12px; }
+    .action-icon {
+      width: 32px;
+      height: 32px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--soft);
+      color: var(--ink-2);
+    }
+
+    @keyframes sheet-in {
+      from { transform: translateY(16px); opacity: 0.5; }
+      to { transform: none; opacity: 1; }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @media (hover: hover) {
+      .icon-btn:hover { background: rgba(255, 255, 255, 0.14); }
+      .filter-btn.is-active:hover { background: #f2f0ec; }
+      .act-call:hover { background: #ece9e3; }
+      .act-wa:hover { background: var(--accent-press); }
+      .sheet-close:hover, .option:hover, .sheet-action:hover { background: var(--soft); }
+      .more-btn:hover { background: #faf9f7; }
+    }
+
+    @media (min-width: 640px) {
+      .sheet {
+        border-radius: 18px;
+        border-bottom: 1px solid var(--line);
+        bottom: 24px;
+      }
+    }
+
+    @media (max-width: 359px) {
+      .act-call { font-size: 11.5px; padding: 0 6px; gap: 4px; }
+      .act-call .ico { width: 16px; height: 16px; }
+      .act-wa { flex-basis: 40px; }
+      .num-full { display: none; }
+      .num-compact { display: inline; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+  </symbol>
+  <symbol id="i-funnel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+  </symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 18L18 6M6 6l12 12" />
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+  </symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+  </symbol>
+  <symbol id="i-mobile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+  </symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+  </symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.5 12.75l6 6 9-13.5" />
+  </symbol>
+  <symbol id="i-whatsapp" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488" />
+  </symbol>
+</svg>
+
+<header class="app-bar">
+  <h1 class="sr-only">Kurum ve yönetici rehberi</h1>
+  <div class="search-row">
+    <div class="search-field">
+      <svg class="ico search-icon" aria-hidden="true"><use href="#i-search" /></svg>
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Rehberde ara"
+        aria-label="Rehberde ara"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        enterkeyhint="search"
+        inputmode="search"
+      />
+      <button class="clear-btn" id="clearBtn" type="button" aria-label="Aramayı temizle">
+        <svg class="ico" aria-hidden="true"><use href="#i-x" /></svg>
+      </button>
+    </div>
+    <button class="icon-btn filter-btn" id="filterBtn" type="button" aria-label="İlçeye göre filtrele" aria-haspopup="dialog">
+      <svg class="ico" aria-hidden="true"><use href="#i-funnel" /></svg>
+      <span class="filter-dot" id="filterDot" hidden></span>
+    </button>
+    <button class="icon-btn" id="settingsBtn" type="button" aria-label="Ayarlar" aria-haspopup="dialog">
+      <svg class="ico" aria-hidden="true"><use href="#i-cog" /></svg>
+    </button>
+  </div>
+</header>
+
+<main id="list"></main>
+
+<dialog class="sheet" id="filterSheet" aria-labelledby="filterTitle">
+  <div class="sheet-head">
+    <h2 id="filterTitle">İlçe</h2>
+    <button class="sheet-close" type="button" aria-label="Kapat" data-close="filterSheet">
+      <svg class="ico" aria-hidden="true"><use href="#i-x" /></svg>
+    </button>
+  </div>
+  <div class="sheet-body" id="districtOptions"></div>
+</dialog>
+
+<dialog class="sheet" id="settingsSheet" aria-labelledby="settingsTitle">
+  <div class="sheet-head">
+    <h2 id="settingsTitle">Ayarlar</h2>
+    <button class="sheet-close" type="button" aria-label="Kapat" data-close="settingsSheet">
+      <svg class="ico" aria-hidden="true"><use href="#i-x" /></svg>
+    </button>
+  </div>
+  <div class="sheet-body">
+    <button class="sheet-action" type="button" data-action="upload">
+      <span class="action-icon"><svg class="ico" aria-hidden="true"><use href="#i-upload" /></svg></span>
+      Excel yükle
+    </button>
+    <button class="sheet-action" type="button" data-action="export">
+      <span class="action-icon"><svg class="ico" aria-hidden="true"><use href="#i-download" /></svg></span>
+      Gömülü HTML indir
+    </button>
+  </div>
+</dialog>
+
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden />
+
+<script id="embedded-data" type="application/json" data-updated="0">[]</script>
+
+<script>
+  const STORAGE_KEY = 'okul_rehberi_data_v1';
+  let contacts = [];
+  let selectedDistrict = 'TÜMÜ';
+  let renderLimit = 80;
+
+  const normalizeTR = (val) =>
+    String(val || '')
+      .trim()
+      .toLocaleLowerCase('tr-TR')
+      .replace(/ı/g, 'i')
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c');
+
+  const escapeHtml = (str) =>
+    String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const titleCaseTR = (str) => {
+    const lower = String(str || '').toLocaleLowerCase('tr-TR');
+    return lower.charAt(0).toLocaleUpperCase('tr-TR') + lower.slice(1);
+  };
+
+  const parsePhone = (raw) => {
+    if (raw === null || raw === undefined) return null;
+    let digits = String(raw).replace(/\D/g, '');
+    if (digits.startsWith('90') && digits.length === 12) digits = digits.slice(2);
+    if (digits.startsWith('0') && digits.length === 11) digits = digits.slice(1);
+    if (digits.length !== 10) return null;
+    const dial = '0' + digits;
+    const formatted = `0${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 8)} ${digits.slice(8, 10)}`;
+    const isMobile = digits.startsWith('5');
+    return { dial, formatted, isMobile, wa: isMobile ? '90' + digits : null };
+  };
+
+  function init() {
+    const embeddedEl = document.getElementById('embedded-data');
+    const embeddedUpdated = Number(embeddedEl.getAttribute('data-updated') || '0');
+    let embeddedList = [];
+    try { embeddedList = JSON.parse(embeddedEl.textContent || '[]'); } catch (e) {}
+
+    let savedObj = null;
+    try { savedObj = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) {}
+
+    if (savedObj && Array.isArray(savedObj.data) && savedObj.updatedAtMs >= embeddedUpdated) {
+      contacts = savedObj.data;
+    } else {
+      contacts = embeddedList;
+    }
+
+    buildDistrictOptions();
+    render();
+  }
+
+  function getDistricts() {
+    const set = new Set();
+    contacts.forEach((c) => {
+      if (c.ilce) set.add(String(c.ilce).trim().toLocaleUpperCase('tr-TR'));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr-TR'));
+  }
+
+  function buildDistrictOptions() {
+    const container = document.getElementById('districtOptions');
+    const options = ['TÜMÜ', ...getDistricts()];
+    container.innerHTML = options
+      .map(
+        (d) => `
+        <button class="option ${d === selectedDistrict ? 'is-selected' : ''}" type="button" data-district="${escapeHtml(d)}">
+          <span class="option-label">${d === 'TÜMÜ' ? 'Tüm ilçeler' : escapeHtml(titleCaseTR(d))}</span>
+          <svg class="ico option-check" aria-hidden="true"><use href="#i-check" /></svg>
+        </button>`
+      )
+      .join('');
+    updateFilterButton();
+  }
+
+  function updateFilterButton() {
+    const active = selectedDistrict !== 'TÜMÜ';
+    document.getElementById('filterBtn').classList.toggle('is-active', active);
+    document.getElementById('filterDot').hidden = !active;
+  }
+
+  function selectDistrict(district) {
+    selectedDistrict = district;
+    renderLimit = 80;
+    buildDistrictOptions();
+    closeSheet('filterSheet');
+    render();
+  }
+
+  function openSheet(id) {
+    const sheet = document.getElementById(id);
+    if (!sheet) return;
+    if (typeof sheet.showModal === 'function') sheet.showModal();
+    else sheet.setAttribute('open', '');
+  }
+
+  function closeSheet(id) {
+    const sheet = document.getElementById(id);
+    if (!sheet) return;
+    if (typeof sheet.close === 'function') sheet.close();
+    else sheet.removeAttribute('open');
+  }
+
+  function clearSearch() {
+    const input = document.getElementById('searchInput');
+    input.value = '';
+    renderLimit = 80;
+    render();
+    input.focus();
+  }
+
+  function render() {
+    const q = normalizeTR(document.getElementById('searchInput').value);
+    document.getElementById('clearBtn').classList.toggle('is-visible', Boolean(q));
+
+    const filtered = contacts.filter((c) => {
+      const distOk =
+        selectedDistrict === 'TÜMÜ' ||
+        (c.ilce && String(c.ilce).trim().toLocaleUpperCase('tr-TR') === selectedDistrict);
+      if (!distOk) return false;
+      if (!q) return true;
+      return (
+        normalizeTR(c.okul).includes(q) ||
+        normalizeTR(c.mdr).includes(q) ||
+        normalizeTR(c.ilce).includes(q) ||
+        String(c.tel || '').includes(q) ||
+        String(c.cep || '').includes(q)
+      );
+    });
+
+    const listEl = document.getElementById('list');
+    if (filtered.length === 0) {
+      listEl.innerHTML = contacts.length
+        ? `<div class="empty"><div class="empty-title">Eşleşen kayıt bulunamadı</div>Aramayı veya ilçe filtresini değiştirin.</div>`
+        : `<div class="empty"><div class="empty-title">Henüz kayıt yok</div>Ayarlar menüsünden bir Excel dosyası yükleyin.</div>`;
+      return;
+    }
+
+    const slice = filtered.slice(0, renderLimit);
+    let html = slice
+      .map((c) => {
+        const landline = parsePhone(c.tel);
+        const mobile = parsePhone(c.cep);
+        const waTarget = mobile && mobile.wa;
+
+        const phoneButton = (phone, icon, label) =>
+          phone
+            ? `<a class="act act-call" href="tel:${phone.dial}" aria-label="${label} ${phone.formatted}">
+                 <svg class="ico" aria-hidden="true"><use href="#${icon}" /></svg>
+                 <span class="num-full">${phone.formatted}</span><span class="num-compact">${phone.dial}</span>
+               </a>`
+            : '';
+
+        return `
+        <article class="card">
+          <div class="school">${escapeHtml(c.okul)}</div>
+          <div class="person">
+            <svg class="ico" aria-hidden="true"><use href="#i-user" /></svg>
+            <span>${escapeHtml(c.mdr || 'Belirtilmemiş')}</span>
+          </div>
+          <div class="actions">
+            ${phoneButton(landline, 'i-phone', 'Sabit telefonu ara')}
+            ${phoneButton(mobile, 'i-mobile', 'Cep telefonunu ara')}
+            ${waTarget
+              ? `<a class="act act-wa" href="https://wa.me/${waTarget}" target="_blank" rel="noopener" aria-label="WhatsApp ile yaz">
+                   <svg class="ico" aria-hidden="true"><use href="#i-whatsapp" /></svg>
+                 </a>`
+              : ''}
+          </div>
+        </article>`;
+      })
+      .join('');
+
+    if (filtered.length > renderLimit) {
+      html += `<button class="more-btn" type="button" onclick="showMore()">Daha fazla göster (${filtered.length - renderLimit} kayıt)</button>`;
+    }
+    listEl.innerHTML = html;
+  }
+
+  function showMore() {
+    renderLimit += 120;
+    render();
+  }
+
+  function pickFile() {
+    closeSheet('settingsSheet');
+    document.getElementById('fileInput').click();
+  }
+
+  document.getElementById('searchInput').addEventListener('input', () => {
+    renderLimit = 80;
+    render();
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', clearSearch);
+  document.getElementById('filterBtn').addEventListener('click', () => openSheet('filterSheet'));
+  document.getElementById('settingsBtn').addEventListener('click', () => openSheet('settingsSheet'));
+
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeSheet(btn.dataset.close));
+  });
+
+  document.querySelectorAll('dialog.sheet').forEach((sheet) => {
+    sheet.addEventListener('click', (e) => {
+      if (e.target === sheet) sheet.close();
+    });
+  });
+
+  document.getElementById('districtOptions').addEventListener('click', (e) => {
+    const option = e.target.closest('[data-district]');
+    if (option) selectDistrict(option.dataset.district);
+  });
+
+  document.querySelector('[data-action="upload"]').addEventListener('click', pickFile);
+  document.querySelector('[data-action="export"]').addEventListener('click', exportEmbeddedHtml);
+
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      alert('Excel okuyucu yüklenemedi. İlk yükleme sırasında internet bağlantısı gerekir.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+        const parsed = [];
+        rows.forEach((row, idx) => {
+          const m = {};
+          Object.keys(row).forEach((k) => { m[normalizeTR(k)] = row[k]; });
+          const okul = String(m.okul || m.kurum || '').trim();
+          const mdr = String(m.mdr || m.mudur || m.kisi || '').trim();
+          const ilce = String(m.ilce || '').trim();
+          const tel = String(m.tel || m.telefon || '').trim();
+          const cep = String(m.cep || m.gsm || '').trim();
+          if (okul || mdr) {
+            parsed.push({ sno: m.sno || idx + 1, okul, mdr, ilce, tel, cep });
+          }
+        });
+
+        if (!parsed.length) {
+          alert('Excel içinde geçerli satır bulunamadı.');
+          return;
+        }
+
+        contacts = parsed;
+        selectedDistrict = 'TÜMÜ';
+        renderLimit = 80;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: contacts, updatedAtMs: Date.now() }));
+        buildDistrictOptions();
+        render();
+        alert(parsed.length + ' kayıt rehbere aktarıldı.');
+      } catch (err) {
+        alert('Dosya okuma hatası: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  });
+
+  function exportEmbeddedHtml() {
+    if (!contacts.length) {
+      alert('Önce bir Excel dosyası yükleyin.');
+      return;
+    }
+    closeSheet('settingsSheet');
+
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll('link[rel="manifest"], link[rel="apple-touch-icon"], link[rel="icon"]').forEach((el) => el.remove());
+    clone.querySelectorAll('dialog').forEach((d) => d.removeAttribute('open'));
+    clone.querySelector('#list').innerHTML = '';
+    clone.querySelector('#districtOptions').innerHTML = '';
+    clone.querySelector('#searchInput').value = '';
+
+    const dataEl = clone.querySelector('#embedded-data');
+    dataEl.setAttribute('data-updated', String(Date.now()));
+    dataEl.textContent = JSON.stringify(contacts).replace(/</g, '\\u003c');
+
+    const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'index.html';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  init();
+</script>
+</body>
+</html>
