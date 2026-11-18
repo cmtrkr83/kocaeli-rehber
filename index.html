@@ -736,9 +736,15 @@
         const waTarget = mobile && mobile.wa;
         const district = c.ilce ? String(c.ilce).trim().toLocaleUpperCase('tr-TR') : '';
         const schoolName = String(c.okul || '').trim();
-        const districtPrefix = district && schoolName && !normalizeTR(schoolName).startsWith(normalizeTR(district) + ' -')
-          ? district + ' - '
-          : '';
+        let displaySchool = schoolName;
+        if (district && schoolName) {
+          const match = schoolName.match(/^(.+?)\s*[-–]\s*(.*)$/);
+          if (match && normalizeTR(match[1]) === normalizeTR(district)) {
+            displaySchool = match[2].trim() ? district + ' - ' + match[2].trim() : district;
+          } else {
+            displaySchool = district + ' - ' + schoolName;
+          }
+        }
 
         const phoneButton = (phone, icon, label) =>
           phone
@@ -750,7 +756,7 @@
 
         return `
         <article class="card">
-          <div class="school">${escapeHtml(districtPrefix + schoolName)}</div>
+          <div class="school">${escapeHtml(displaySchool)}</div>
           <div class="person">
             <svg class="ico" aria-hidden="true"><use href="#i-user" /></svg>
             <span>${escapeHtml(c.mdr || 'Belirtilmemiş')}</span>
