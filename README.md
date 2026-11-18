@@ -6,6 +6,8 @@ Okul/kurum yöneticilerine tek dokunuşla ulaşmak için mobil öncelikli bir re
 
 Bu depoda **örnek kayıt bulunmaz**. Rehber verisi yalnızca kullanıcının cihazında (`localStorage`) tutulur ve sunucuya gönderilmez. Veri yüklemek için uygulamadaki **Ayarlar → Excel yükle** akışı kullanılır.
 
+Sunucu yalnızca statik dosya sunar; `GET`/`HEAD` dışındaki istekler `405` ile reddedilir. Excel dosyası tarayıcıda okunur, hiçbir ağ isteğine eklenmez.
+
 ## Özellikler
 
 - Excel (`.xlsx`, `.xls`, `.csv`) yükleme, ilçe filtresi, arama
